@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг комнат</title>
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #3498db;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .rooms-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            justify-content: center;
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .room {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            width: 280px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: white;
+        }
+        .room-id {
+            font-weight: bold;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: white;
+            text-align: center;
+            background-color: #3498db;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .parameter {
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1em;
+        }
+        .parameter-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .status-open {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-closed {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .temperature {
+            color: #3498db;
+            font-weight: bold;
+        }
+        .activities-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .activities-title {
+            color: #3498db;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .activity-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        .activity-details {
+            margin-bottom: 5px;
+        }
+        .activity-date {
+            color: #777;
+            font-size: 0.9em;
+        }
+        .activity-room-id {
+            font-weight: bold;
+            color: #555;
+        }
+        .activity-action {
+            color: #333;
+        }
+        .activity-employee {
+            font-style: italic;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .room-activities {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+        }
+        .show-activities {
+            display: block;
+        }
+        .toggle-activities {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .toggle-activities:hover {
+            background-color: #2980b9;
+        }
+        .room-activities {
+    display: none;
+    width: 100%;
+    max-width: 800px;
+    margin-bottom: 20px;
+}
+
+.show-activities {
+    display: block;
+}
+    </style>
+</head>
+<body>
+    <h1>Мониторинг комнат (Live)</h1>
+
+    <div class="rooms-container">
+        {% for room in rooms %}
+        <div class="room">
+            <div class="room-id">Комната ID: {{ room.id }}</div>
+            <div class="parameter">
+                <span class="parameter-label">Температура:</span>
+                <span class="temperature">{{ room.temperature }}°C</span>
+            </div>
+            <div class="parameter">
+                <span class="parameter-label">Статус:</span>
+                {% if room.is_open %}
+                <span class="status-open">Открыта</span>
+                {% else %}
+                <span class="status-closed">Закрыта</span>
+                {% endif %}
+            </div>
+            <button class="toggle-activities" onclick="toggleActivities({{ room.id }})">
+                Показать активность
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% for room in rooms %}
+    <div class="room-activities" id="activities-{{ room.id }}">
+        <div class="activities-container">
+            <h2 class="activities-title">Активность комнаты {{ room.id }}</h2>
+            {% for activity in activities_by_room[room.id] %}
+            <div class="activity-item">
+                <div class="activity-details">
+                    <span class="activity-action">{{ activity.action }}</span>
+                    {% if activity.first_name %}
+                    <div class="activity-employee">
+                        Открыто: {{ activity.first_name }} {{ activity.last_name }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="activity-date">{{ activity.date.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <script>
+    // Функция для переключения отображения активности комнаты
+    function toggleActivities(roomId) {
+    const activitiesDiv = document.getElementById(`activities-${roomId}`);
+    const buttons = document.querySelectorAll('.toggle-activities');
+    const button = Array.from(buttons).find(btn =>
+        btn.parentElement.querySelector('.room-id').textContent.includes(`ID: ${roomId}`)
+    );
+
+    if (activitiesDiv.style.display === 'block') {
+        activitiesDiv.style.display = 'none';
+        button.textContent = 'Показать активность';
+    } else {
+        // Сначала скрываем все активности
+        document.querySelectorAll('.room-activities').forEach(el => {
+            el.style.display = 'none';
+        });
+        // Сбрасываем текст всех кнопок
+        buttons.forEach(btn => {
+            btn.textContent = 'Показать активность';
+        });
+        // Показываем только выбранную
+        activitiesDiv.style.display = 'block';
+        button.textContent = 'Скрыть активность';
+    }
+}
+
+    // Функция для обновления всего контента
+    async function updateAllData() {
+        try {
+            // 1. Обновляем температуры на сервере
+            const updateResponse = await fetch('/sensor/update_temperature', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!updateResponse.ok) {
+                throw new Error('Ошибка обновления температур');
+            }
+
+            // 2. Параллельно получаем обновленные данные
+            const [roomsResponse] = await Promise.all([
+                fetch('/sensor/room')
+            ]);
+
+            if (!roomsResponse.ok) {
+                throw new Error('Ошибка получения данных');
+            }
+
+            const rooms = await roomsResponse.json();
+
+            // 3. Обновляем температуры и статусы
+            const roomElements = document.querySelectorAll('.room');
+            roomElements.forEach((roomElement, index) => {
+                const roomId = rooms[index].id;
+                const temperatureElement = roomElement.querySelector('.temperature');
+                const statusElement = roomElement.querySelector('.status-open, .status-closed');
+
+                if (temperatureElement && rooms[index]) {
+                    temperatureElement.textContent = `${rooms[index].temperature}°C`;
+                }
+
+                if (statusElement && rooms[index]) {
+                    if (rooms[index].is_open) {
+                        statusElement.textContent = 'Открыта';
+                        statusElement.className = 'status-open';
+                    } else {
+                        statusElement.textContent = 'Закрыта';
+                        statusElement.className = 'status-closed';
+                    }
+                }
+
+                // Обновляем активность для этой комнаты
+                updateRoomActivities(roomId);
+            });
+
+        } catch (error) {
+            console.error('Ошибка при обновлении данных:', error);
+        }
+    }
+
+    // Функция для обновления активности конкретной комнаты
+    async function updateRoomActivities(roomId) {
+        try {
+            const response = await fetch(`/sensor/get_activities/${roomId}`);
+            if (!response.ok) {
+                throw new Error('Ошибка получения активности');
+            }
+
+            const activities = await response.json();
+            const activitiesContainer = document.getElementById(`activities-${roomId}`);
+
+            if (!activitiesContainer) return;
+
+            // Очищаем контейнер (кроме заголовка)
+            const title = activitiesContainer.querySelector('.activities-title');
+            activitiesContainer.innerHTML = '';
+            if (title) activitiesContainer.appendChild(title);
+
+            if (activities.length === 0) {
+                const noActivities = document.createElement('p');
+                noActivities.textContent = 'Нет записей об активности.';
+                activitiesContainer.appendChild(noActivities);
+                return;
+            }
+
+            // Добавляем новые активности
+            activities.forEach(activity => {
+                const activityItem = document.createElement('div');
+                activityItem.className = 'activity-item';
+
+                const details = document.createElement('div');
+                details.className = 'activity-details';
+
+                const action = document.createElement('span');
+                action.className = 'activity-action';
+                action.textContent = activity.action;
+                details.appendChild(action);
+
+                if (activity.first_name) {
+                    const employee = document.createElement('div');
+                    employee.className = 'activity-employee';
+                    employee.textContent = `Открыто: ${activity.first_name} ${activity.last_name}`;
+                    details.appendChild(employee);
+                }
+
+                const date = document.createElement('div');
+                date.className = 'activity-date';
+                date.textContent = activity.date;
+
+                activityItem.appendChild(details);
+                activityItem.appendChild(date);
+                activitiesContainer.appendChild(activityItem);
+            });
+
+        } catch (error) {
+            console.error(`Ошибка при обновлении активности комнаты ${roomId}:`, error);
+        }
+    }
+
+    // Обработчик клика по комнате
+    const roomIds = document.querySelectorAll('.room-id');
+    roomIds.forEach(roomDiv => {
+        roomDiv.addEventListener('click', async function() {
+            const roomIdText = this.textContent.trim();
+            const roomId = roomIdText.split(':')[1].trim();
+
+            const url = `/sensor/open_room?id_room=${roomId}`;
+
+            try {
+                // 1. Открываем комнату
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result === true) {
+                        const statusElement = this.parentElement.querySelector('.status-open, .status-closed');
+                        if (statusElement) {
+                            // 2. Устанавливаем статус "Открыта"
+                            statusElement.textContent = 'Открыта';
+                            statusElement.className = 'status-open';
+
+                            // 3. Через 3 секунды закрываем комнату
+                            setTimeout(async () => {
+                                try {
+                                    const closeResponse = await fetch(`/sensor/closed_room?id_room=${roomId}`, {
+                                        method: 'PATCH',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        }
+                                    });
+
+                                    if (closeResponse.ok) {
+                                        statusElement.textContent = 'Закрыта';
+                                        statusElement.className = 'status-closed';
+                                        console.log(`Комната ${roomId} закрыта.`);
+                                        // Обновляем данные после закрытия
+                                        await updateAllData();
+                                    }
+                                } catch (error) {
+                                    console.error('Ошибка при закрытии комнаты:', error);
+                                }
+                            }, 3000); // 3000 мс = 3 секунды
+                        }
+                        console.log(`Комната ${roomId} открыта.`);
+                        // Обновляем данные после открытия
+                        await updateAllData();
+                    } else {
+                        console.error(`Ошибка при открытии комнаты ${roomId}.`);
+                    }
+                } else {
+                    console.error(`Ошибка HTTP: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при отправке запроса:', error);
+            }
+        });
+    });
+
+    // Запускаем обновление данных каждые 10 секунд
+    setInterval(updateAllData, 10000);
+
+    // Инициализация при загрузке
+    document.addEventListener('DOMContentLoaded', () => {
+        updateAllData();
+    });
+    </script>
+</body>
+</html>
