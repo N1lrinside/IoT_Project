@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Мониторинг комнат</title>
     <style>
-
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -37,6 +36,7 @@
             width: 280px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             background-color: white;
+            transition: all 0.3s ease;
         }
         .room-id {
             font-weight: bold;
@@ -47,7 +47,6 @@
             background-color: #3498db;
             padding: 10px;
             border-radius: 5px;
-            cursor: pointer;
         }
         .parameter {
             margin-bottom: 12px;
@@ -117,6 +116,7 @@
             display: none;
             width: 100%;
             max-width: 800px;
+            margin-bottom: 20px;
         }
         .show-activities {
             display: block;
@@ -133,16 +133,14 @@
         .toggle-activities:hover {
             background-color: #2980b9;
         }
-        .room-activities {
-    display: none;
-    width: 100%;
-    max-width: 800px;
-    margin-bottom: 20px;
-}
-
-.show-activities {
-    display: block;
-}
+        .highlight {
+            animation: highlight 2s;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+        }
+        @keyframes highlight {
+            0% { box-shadow: 0 0 10px rgba(46, 204, 113, 0.8); }
+            100% { box-shadow: none; }
+        }
     </style>
 </head>
 <body>
@@ -150,7 +148,7 @@
 
     <div class="rooms-container">
         {% for room in rooms %}
-        <div class="room">
+        <div class="room" id="room-{{ room.id }}">
             <div class="room-id">Комната ID: {{ room.id }}</div>
             <div class="parameter">
                 <span class="parameter-label">Температура:</span>
@@ -193,102 +191,108 @@
     {% endfor %}
 
     <script>
+    // Глобальные переменные для управления автоматическим открытием
+    let currentRoomIndex = 0;
+    const roomIds = Array.from(document.querySelectorAll('.room')).map(room =>
+        room.id.replace('room-', '')
+    );
+    const OPEN_DURATION = 3000; // 3 секунды открыто
+    const INTERVAL_BETWEEN_ROOMS = 15000; // 15 секунд между комнатами
+
     // Функция для переключения отображения активности комнаты
     function toggleActivities(roomId) {
-    const activitiesDiv = document.getElementById(`activities-${roomId}`);
-    const buttons = document.querySelectorAll('.toggle-activities');
-    const button = Array.from(buttons).find(btn =>
-        btn.parentElement.querySelector('.room-id').textContent.includes(`ID: ${roomId}`)
-    );
+        const activitiesDiv = document.getElementById(`activities-${roomId}`);
+        const buttons = document.querySelectorAll('.toggle-activities');
+        const button = Array.from(buttons).find(btn =>
+            btn.parentElement.querySelector('.room-id').textContent.includes(`ID: ${roomId}`)
+        );
 
-    if (activitiesDiv.style.display === 'block') {
-        activitiesDiv.style.display = 'none';
-        button.textContent = 'Показать активность';
-    } else {
-        // Сначала скрываем все активности
-        document.querySelectorAll('.room-activities').forEach(el => {
-            el.style.display = 'none';
-        });
-        // Сбрасываем текст всех кнопок
-        buttons.forEach(btn => {
-            btn.textContent = 'Показать активность';
-        });
-        // Показываем только выбранную
-        activitiesDiv.style.display = 'block';
-        button.textContent = 'Скрыть активность';
+        if (activitiesDiv.style.display === 'block') {
+            activitiesDiv.style.display = 'none';
+            button.textContent = 'Показать активность';
+        } else {
+            // Сначала скрываем все активности
+            document.querySelectorAll('.room-activities').forEach(el => {
+                el.style.display = 'none';
+            });
+            // Сбрасываем текст всех кнопок
+            buttons.forEach(btn => {
+                btn.textContent = 'Показать активность';
+            });
+            // Показываем только выбранную
+            activitiesDiv.style.display = 'block';
+            button.textContent = 'Скрыть активность';
+        }
     }
-}
 
-    // Функция для обновления всего контента
-    async function updateAllData() {
+    // Функция для открытия комнаты
+    async function openRoom(roomId) {
         try {
-            // 1. Обновляем температуры на сервере
-            const updateResponse = await fetch('/sensor/update_temperature', {
+            const roomElement = document.getElementById(`room-${roomId}`);
+            roomElement.classList.add('highlight');
+
+            // 1. Открываем комнату
+            const response = await fetch(`/sensor/open_room?id_room=${roomId}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
 
-            if (!updateResponse.ok) {
-                throw new Error('Ошибка обновления температур');
-            }
-
-            // 2. Параллельно получаем обновленные данные
-            const [roomsResponse] = await Promise.all([
-                fetch('/sensor/room')
-            ]);
-
-            if (!roomsResponse.ok) {
-                throw new Error('Ошибка получения данных');
-            }
-
-            const rooms = await roomsResponse.json();
-
-            // 3. Обновляем температуры и статусы
-            const roomElements = document.querySelectorAll('.room');
-            roomElements.forEach((roomElement, index) => {
-                const roomId = rooms[index].id;
-                const temperatureElement = roomElement.querySelector('.temperature');
-                const statusElement = roomElement.querySelector('.status-open, .status-closed');
-
-                if (temperatureElement && rooms[index]) {
-                    temperatureElement.textContent = `${rooms[index].temperature}°C`;
-                }
-
-                if (statusElement && rooms[index]) {
-                    if (rooms[index].is_open) {
+            if (response.ok) {
+                const result = await response.json();
+                if (result === true) {
+                    const statusElement = roomElement.querySelector('.status-open, .status-closed');
+                    if (statusElement) {
+                        // 2. Устанавливаем статус "Открыта"
                         statusElement.textContent = 'Открыта';
                         statusElement.className = 'status-open';
-                    } else {
-                        statusElement.textContent = 'Закрыта';
-                        statusElement.className = 'status-closed';
+
+                        // 3. Через 3 секунды закрываем комнату
+                        setTimeout(async () => {
+                            try {
+                                const closeResponse = await fetch(`/sensor/closed_room?id_room=${roomId}`, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+
+                                if (closeResponse.ok) {
+                                    statusElement.textContent = 'Закрыта';
+                                    statusElement.className = 'status-closed';
+                                    // Обновляем активность после закрытия
+                                    updateRoomActivities(roomId);
+                                }
+                            } catch (error) {
+                                console.error('Ошибка при закрытии комнаты:', error);
+                            }
+                        }, OPEN_DURATION);
                     }
+                    // Обновляем активность после открытия
+                    updateRoomActivities(roomId);
                 }
-
-                // Обновляем активность для этой комнаты
-                updateRoomActivities(roomId);
-            });
-
+            }
         } catch (error) {
-            console.error('Ошибка при обновлении данных:', error);
+            console.error('Ошибка при отправке запроса:', error);
+        } finally {
+            setTimeout(() => {
+                const roomElement = document.getElementById(`room-${roomId}`);
+                if (roomElement) roomElement.classList.remove('highlight');
+            }, 2000);
         }
     }
 
-    // Функция для обновления активности конкретной комнаты
+    // Функция для обновления активности комнаты
     async function updateRoomActivities(roomId) {
         try {
             const response = await fetch(`/sensor/get_activities/${roomId}`);
-            if (!response.ok) {
-                throw new Error('Ошибка получения активности');
-            }
+            if (!response.ok) return;
 
             const activities = await response.json();
             const activitiesContainer = document.getElementById(`activities-${roomId}`);
-
             if (!activitiesContainer) return;
 
-            // Очищаем контейнер (кроме заголовка)
             const title = activitiesContainer.querySelector('.activities-title');
             activitiesContainer.innerHTML = '';
             if (title) activitiesContainer.appendChild(title);
@@ -300,7 +304,6 @@
                 return;
             }
 
-            // Добавляем новые активности
             activities.forEach(activity => {
                 const activityItem = document.createElement('div');
                 activityItem.className = 'activity-item';
@@ -322,7 +325,7 @@
 
                 const date = document.createElement('div');
                 date.className = 'activity-date';
-                date.textContent = activity.date;
+                date.textContent = new Date(activity.date).toLocaleString();
 
                 activityItem.appendChild(details);
                 activityItem.appendChild(date);
@@ -334,76 +337,51 @@
         }
     }
 
-    // Обработчик клика по комнате
-    const roomIds = document.querySelectorAll('.room-id');
-    roomIds.forEach(roomDiv => {
-        roomDiv.addEventListener('click', async function() {
-            const roomIdText = this.textContent.trim();
-            const roomId = roomIdText.split(':')[1].trim();
+    // Функция для автоматического открытия комнат по очереди
+    function startAutoOpen() {
+        if (roomIds.length === 0) return;
 
-            const url = `/sensor/open_room?id_room=${roomId}`;
+        // Открываем текущую комнату
+        openRoom(roomIds[currentRoomIndex]);
 
-            try {
-                // 1. Открываем комнату
-                const response = await fetch(url, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+        // Переходим к следующей комнате
+        currentRoomIndex = (currentRoomIndex + 1) % roomIds.length;
 
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result === true) {
-                        const statusElement = this.parentElement.querySelector('.status-open, .status-closed');
-                        if (statusElement) {
-                            // 2. Устанавливаем статус "Открыта"
-                            statusElement.textContent = 'Открыта';
-                            statusElement.className = 'status-open';
+        // Устанавливаем интервал для следующей комнаты
+        setTimeout(startAutoOpen, INTERVAL_BETWEEN_ROOMS);
+    }
 
-                            // 3. Через 3 секунды закрываем комнату
-                            setTimeout(async () => {
-                                try {
-                                    const closeResponse = await fetch(`/sensor/closed_room?id_room=${roomId}`, {
-                                        method: 'PATCH',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        }
-                                    });
+    // Функция для обновления данных
+    async function updateAllData() {
+        try {
+            await fetch('/sensor/update_temperature', { method: 'PATCH' });
+            const roomsResponse = await fetch('/sensor/room');
+            const rooms = await roomsResponse.json();
 
-                                    if (closeResponse.ok) {
-                                        statusElement.textContent = 'Закрыта';
-                                        statusElement.className = 'status-closed';
-                                        console.log(`Комната ${roomId} закрыта.`);
-                                        // Обновляем данные после закрытия
-                                        await updateAllData();
-                                    }
-                                } catch (error) {
-                                    console.error('Ошибка при закрытии комнаты:', error);
-                                }
-                            }, 3000); // 3000 мс = 3 секунды
-                        }
-                        console.log(`Комната ${roomId} открыта.`);
-                        // Обновляем данные после открытия
-                        await updateAllData();
-                    } else {
-                        console.error(`Ошибка при открытии комнаты ${roomId}.`);
-                    }
-                } else {
-                    console.error(`Ошибка HTTP: ${response.status}`);
+            document.querySelectorAll('.room').forEach((roomElement, index) => {
+                const temperatureElement = roomElement.querySelector('.temperature');
+                const statusElement = roomElement.querySelector('.status-open, .status-closed');
+
+                if (temperatureElement && rooms[index]) {
+                    temperatureElement.textContent = `${rooms[index].temperature}°C`;
                 }
-            } catch (error) {
-                console.error('Ошибка при отправке запроса:', error);
-            }
-        });
-    });
 
-    // Запускаем обновление данных каждые 10 секунд
-    setInterval(updateAllData, 10000);
+                if (statusElement && rooms[index]) {
+                    statusElement.textContent = rooms[index].is_open ? 'Открыта' : 'Закрыта';
+                    statusElement.className = rooms[index].is_open ? 'status-open' : 'status-closed';
+                }
+            });
+
+        } catch (error) {
+            console.error('Ошибка при обновлении данных:', error);
+        }
+    }
 
     // Инициализация при загрузке
     document.addEventListener('DOMContentLoaded', () => {
         updateAllData();
+        startAutoOpen();
+        setInterval(updateAllData, 10000);
     });
     </script>
 </body>
